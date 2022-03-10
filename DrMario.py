@@ -4,17 +4,15 @@
 title : Dr.Mario
 mail  : tom.ipynb@gmail.com
 
-
 Copyright © 2021 tom0427. All rights reserved.
-
-
 """
-
+from email.mime import image
 import tkinter
 from tkinter import ttk
 import os
 import logging
 import datetime
+import random
 
 from enum import Enum
 
@@ -78,8 +76,8 @@ class DrMario(tkinter.Canvas):
         #key bool
         self.set_keys_False()
         #level stage
-        self.stage = 0
-        self.level = 0
+        self.stage:int = 0
+        self.level:int = 0
         #block image size
         self.block_image_size:int = 50 # 画像は正方形であること
         #定数の設定
@@ -89,6 +87,11 @@ class DrMario(tkinter.Canvas):
         self.bottle_size:tuple[int,int] = (7,10)
         #bottle の設計
         self.bottle:list[list[int]] = [[0 for j in range(self.bottle_size[0])] for i in range(self.bottle_size[1])]
+        #next medicine display
+        self.next_medicine_position:tuple[int,int]=(20,50) #next medicineの表示位置
+        self.next_medicine_size:tuple[int,int]=(150,100)     #next medicine のsize
+        #max block tag
+        self.block_max_tag:int = 0
     #start画面インターフェイス
     def start_button_event_push(self,e):
         """
@@ -110,6 +113,7 @@ class DrMario(tkinter.Canvas):
         self.itemconfig(self.start_button,image=self.startimg)
         logging.debug("出た")
     #game画面インターフェイス
+    #bottleを描画
     def bottle_frame(self,x1, y1, x2, y2, r):
         """
         bottleを描画
@@ -122,7 +126,56 @@ class DrMario(tkinter.Canvas):
         self.create_arc(x2-2*r, y1, x2, y1+2*r, start=0,extent=90, style=tkinter.ARC, outline="white",tags="bottle")
         self.create_line(x2-r, y1, x1+r, y1, fill="white",tags="bottle")
         self.create_arc(x1, y1, x1+2*r, y1+2*r, start=90,extent=90, style=tkinter.ARC, outline="white",tags="bottle")
-    def put_block(self,x,y,color):
+    #medicine描画処理
+    def create_medicine(self)->tuple:
+        """
+        薬を作る
+        """
+        cho:list = [self.RED, self.GREEN, self.BLUE]
+        medi: tuple = (random.choice(cho), random.choice(cho))
+        return medi
+    def color_compile(self,color:int)->"image":
+        if color==1:
+            return self.red_block
+        elif color==2:
+            return self.green_block
+        elif color==3:
+            return self.blue_block
+        else:
+            raise DrMarioError(DrMarioError.COLOR)
+    def set_next_medicine(self)->None:
+        """
+        次の薬を設定する
+        
+        """
+        self.next_medicine:tuple[int,int]=self.create_medicine()                                               #工事中 image のtag付け
+        self.create_image(
+            self.bottle_position[0]+self.bottle_size[0]/2-self.block_image_size/2,
+            self.bottle_position[1]+self.bottle_size[1]/2,
+            image=self.color_compile(self.next_medicine[0])
+            )
+        self.create_image(
+            self.bottle_position[0]+self.bottle_size[0]/2+self.block_image_size/2,
+            self.bottle_position[1]+self.bottle_size[1]/2,
+            image=self.color_compile(self.next_medicine[1])
+            )
+    def drop_start(self):
+        """
+        薬の落下を開始する
+        """
+        pass                                              #工事中
+    def drop_medicine(self):
+        """
+        薬を落とすアニメーション
+        """
+        pass                                               #工事中
+    def next_stage(self):
+        """
+        今のgameをコンプリートした際に次のステージに進む
+        """
+        pass                                               #工事中
+    #medicine処理
+    def put_block(self,x,y,color)->None:
         """
         指定されたbottle上の座標にブロックを置く
         ```python
@@ -137,7 +190,6 @@ class DrMario(tkinter.Canvas):
             image = self.blue_block
         else:
             raise DrMarioError(DrMarioError.COLOR)
-        logging.debug(self.bottle_size)
         if not 0<= x <self.bottle_size[0]:
             raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
         if not 0<= y <self.bottle_size[1]:
@@ -166,6 +218,7 @@ class DrMario(tkinter.Canvas):
         else:
             return "NONE"
     #keybboard
+    #keyをFalseにset
     def set_keys_False(self):
         """
         ## 全てのキーをFalseにする
@@ -191,17 +244,22 @@ class DrMario(tkinter.Canvas):
             self.key_down: bool = True
             logging.debug("Down")
     #カウントダウンアニメーションからの脱出
-
     def exit_count(self):
         """
         カウントダウンから抜けた後の処理
         """
-        #bottleの生成
+        #bottleの描画
         self.bottle_frame(
             self.bottle_position[0], self.bottle_position[1],
             self.bottle_position[0]+self.bottle_size[0]*self.block_image_size,
             self.bottle_position[1] +
             self.bottle_size[1]*self.block_image_size, 10
+        )
+        self.bottle_frame(
+            self.next_medicine_position[0], self.next_medicine_position[1],
+            self.next_medicine_position[0]+self.next_medicine_size[0],
+            self.next_medicine_position[1]+self.next_medicine_size[1],
+            10
         )
         self.after_cancel(self.now_process)
         self.now_process = self.after(0, self.game_loop)
@@ -242,7 +300,8 @@ class DrMario(tkinter.Canvas):
         ## ゲームloop
         """
         self.delete("clock")
-        self.set_keys_False()
+        self.set_keys_False() #keyをset
+        """
         if self.key_right:
             logging.debug("right")
         if self.key_left:
@@ -251,6 +310,8 @@ class DrMario(tkinter.Canvas):
             logging.debug("down")
         if self.key_up:
             logging.debug("up")
+        """
+        
         self.now_process = self.after(10, self.game_loop)
     def result_loop(self):
         """
