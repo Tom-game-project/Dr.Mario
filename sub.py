@@ -1,29 +1,29 @@
 """
 挙動を確認するための何でもファイル
 ゲームとは何にも関係ない
-
+mouse wheel 動作
 """
-import tkinter 
+import tkinter
+import platform
+
 root = tkinter.Tk()
-root.geometry("300x200")
-root.title("hello world")
-frame = tkinter.Frame(root)
-frame.pack()
 
 
+current_os = platform.system()
 
-label = tkinter.Label(frame,
-    text="""
-    こんにちは
-    こんにちは
-    こんにちは
-    こんにちは
-    こんにちは
-    """,
-    width=30, 
-    anchor=tkinter.W, 
-    justify='left'
-)
-label.pack()
+
+def mousewheelevent(e) -> None:
+    if current_os == "Windows":
+        #一ステップがosによって違う
+        print(e.delta/120)
+    else:
+        print(e.delta)
+
+
+canvas = tkinter.Canvas()
+canvas.pack()
+
+root.bind("<MouseWheel>", mousewheelevent)
+
 
 root.mainloop()
