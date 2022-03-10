@@ -16,6 +16,7 @@ import os
 import logging
 import datetime
 
+from enum import Enum
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -25,22 +26,27 @@ logging.basicConfig(
 #logging.disable(level=logging.DEBUG)
 
 #Error
-class DrMarioError(BaseException):
+class DrMarioError(BaseException,Enum):
     """
     DrMarioError
     """
-    def __init__(self,level):
-        self.level = level
+    #Error level
+    COLOR:int=0
+    OUT_OF_BOTTLE_RANGE:int=1
+    def __init__(self,level:int):
+        self.level:int = level
     def __str__(self):
-        if self.level=="color":
+        if self.level == 0:  # COLOR
             return "指定されたcolorは見つかりませんでした"
+        elif self.level == 1:  # OUT_OF_BOTTLE_RANGE
+            return "指定された座標がbottle範囲外です"
         else:
             return "なんかわからんけどerror"
 
 class DrMario(tkinter.Canvas):
-    RED="red"
-    GREEN="green"
-    BLUE="blue"
+    RED=1   #red
+    GREEN=2 #green
+    BLUE=3  #blue
     def __init__(self,master,*args, **kwargs) -> None:
         super().__init__(master,*args,**kwargs)
         self.master=master
@@ -68,10 +74,13 @@ class DrMario(tkinter.Canvas):
         self.level = 0
         #block image size
         self.block_image_size:int = 50 # 画像は正方形であること
+        #定数の設定
         #bottle position
-        self.bottole_position:tuple[int,int]=(200,50)
+        self.bottle_position:tuple[int,int]=(200,50)
         #bottle size
         self.bottle_size:tuple[int,int] = (7,10)
+        #bottle の設計
+        self.bottle:list[list[int]] = [[0 for j in range(self.bottle_size[0])] for i in range(self.bottle_size[1])]
     #start画面インターフェイス
     def start_button_event_push(self,e):
         """
@@ -92,19 +101,6 @@ class DrMario(tkinter.Canvas):
         #領域内からでた
         self.itemconfig(self.start_button,image=self.startimg)
         logging.debug("出た")
-    #カウントダウンアニメーション
-    def exit_count(self):
-        """
-        カウントダウンから抜けた後の処理
-        """
-        #bottleの生成
-        self.bottle_frame(
-            self.bottole_position[0], self.bottole_position[1],
-            self.bottole_position[0]+self.bottle_size[0]*self.block_image_size,
-            self.bottole_position[1]+self.bottle_size[1]*self.block_image_size, 10
-            )
-        self.after_cancel(self.now_process)
-        self.now_process = self.after(0,self.game_loop)
     #game画面インターフェイス
     def bottle_frame(self,x1, y1, x2, y2, r):
         """
@@ -120,22 +116,43 @@ class DrMario(tkinter.Canvas):
         self.create_arc(x1, y1, x1+2*r, y1+2*r, start=90,extent=90, style=tkinter.ARC, outline="white",tags="bottle")
     def put_block(self,x,y,color):
         """
+        指定されたbottle上の座標にブロックを置く
         ```python
-        # 
         self.put_block(5,5,self.RED)
         ```
         """
-        if color=="red":
+        if color==1:   # red
             image = self.red_block
-        elif color=="green":
+        elif color==2: # green
             image = self.green_block
-        elif color=="blue":
+        elif color==3: # blue
             image = self.blue_block
         else:
-            raise DrMarioError
-        self.create_image(10,10,image=image,tags="block")
-    def get_block(self,x,y)->tuple:
-        return True                                                  #工事中
+            raise DrMarioError(DrMarioError.COLOR)
+        logging.debug(self.bottle_size)
+        if not 0<= x <self.bottle_size[0]:
+            raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
+        if not 0<= y <self.bottle_size[1]:
+            raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
+        self.bottle[y][x]= color
+        self.create_image(self.bottle_position[0]+self.block_image_size/2+self.block_image_size*x,      #x
+                        self.bottle_position[1]+self.block_image_size/2+self.block_image_size*y,        #y
+                        image=image,                                                                    #image
+                        tags=f"block"                                                                   #tag
+                        )
+    def get_block(self,x,y)->str:
+        """
+        指定されたbottle上の座標のブロックを返す
+        """
+        colornum:int = self.bottle[y][x]
+        if colornum==1:
+            return "red"
+        elif colornum==2:
+            return "green"
+        elif colornum==3:
+            return "blue"
+        else:
+            return "NONE"
     #keybboard
     def set_keys_False(self):
         """
@@ -161,6 +178,23 @@ class DrMario(tkinter.Canvas):
         if e.keysym == "Down":
             self.key_down: bool = True
             logging.debug("Down")
+    #カウントダウンアニメーションからの脱出
+
+    def exit_count(self):
+        """
+        カウントダウンから抜けた後の処理
+        """
+        #bottleの生成
+        self.bottle_frame(
+            self.bottle_position[0], self.bottle_position[1],
+            self.bottle_position[0]+self.bottle_size[0]*self.block_image_size,
+            self.bottle_position[1] +
+            self.bottle_size[1]*self.block_image_size, 10
+        )
+        self.after_cancel(self.now_process)
+        self.now_process = self.after(0, self.game_loop)
+        logging.debug("start!!")                                                 #  こっから game start
+        self.put_block(6,9,self.RED)  #試験的なput
     def game_over(self):
         """
         ゲームオーバー時の画面遷移
@@ -177,13 +211,13 @@ class DrMario(tkinter.Canvas):
         """
         カウントダウンアニメーションのloop
         """
-        if self.count[0]==0 and datetime.datetime.now()-self.count[1]>datetime.timedelta(seconds=1):
+        if self.count[0]==0 and datetime.datetime.now()-self.count[1]>=datetime.timedelta(seconds=1):
             self.itemconfig("counter",image=self.count2png)
             self.count[0]=1
-        elif self.count[0]==1 and datetime.datetime.now()-self.count[1]>datetime.timedelta(seconds=2):
+        elif self.count[0]==1 and datetime.datetime.now()-self.count[1]>=datetime.timedelta(seconds=2):
             self.itemconfig("counter",image=self.count1png)
             self.count[0]=2
-        elif self.count[0]==2 and datetime.datetime.now()-self.count[1]>datetime.timedelta(seconds=3):
+        elif self.count[0]==2 and datetime.datetime.now()-self.count[1]>=datetime.timedelta(seconds=3):
             self.delete("counter")
             self.exit_count()
             return True #確実にloopを殺す
@@ -195,7 +229,6 @@ class DrMario(tkinter.Canvas):
         ## ゲームloop
         """
         self.delete("clock")
-        self.create_text(250,250,text=datetime.datetime.now(),tags="clock",fill="white")
         self.set_keys_False()
         if self.key_right:
             logging.debug("right")
@@ -213,21 +246,16 @@ class DrMario(tkinter.Canvas):
         self.now_process = self.after(10, self.result_loop)
 
 
-
-
-
-
-
-
-root=tkinter.Tk()
-root.title("Dr.Mario")
-frame = ttk.Frame(root)
-frame.pack()
-
-canvas = DrMario(frame,width=600,height=600,bg="black")
-canvas.pack()
-root.bind("<Key>",canvas.key_events)
-
-canvas.after(0,canvas.start_loop)
-
-root.mainloop()
+if __name__=="__main__":
+    root=tkinter.Tk()
+    root.title("Dr.Mario")
+    frame = ttk.Frame(root)
+    frame.pack()
+    
+    canvas = DrMario(frame,width=600,height=600,bg="black")
+    canvas.pack()
+    root.bind("<Key>",canvas.key_events)
+    
+    canvas.after(0,canvas.start_loop)
+    
+    root.mainloop()
