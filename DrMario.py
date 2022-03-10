@@ -28,11 +28,14 @@ logging.basicConfig(
 #Error
 class DrMarioError(BaseException,Enum):
     """
-    DrMarioError
+    classname:DrMarioError
+    description:DrMarioのError
     """
     #Error level
     COLOR:int=0
     OUT_OF_BOTTLE_RANGE:int=1
+
+    #初期化
     def __init__(self,level:int):
         self.level:int = level
     def __str__(self):
@@ -44,9 +47,14 @@ class DrMarioError(BaseException,Enum):
             return "なんかわからんけどerror"
 
 class DrMario(tkinter.Canvas):
-    RED=1   #red
-    GREEN=2 #green
-    BLUE=3  #blue
+    """
+    classname:DrMario
+    description:game のメインエンジン
+    """
+    NONE:int = 0  #NONE
+    RED:int = 1   #red
+    GREEN:int = 2 #green
+    BLUE:int = 3  #blue
     def __init__(self,master,*args, **kwargs) -> None:
         super().__init__(master,*args,**kwargs)
         self.master=master
@@ -144,6 +152,10 @@ class DrMario(tkinter.Canvas):
         """
         指定されたbottle上の座標のブロックを返す
         """
+        if not 0 <= x < self.bottle_size[0]:
+            raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
+        if not 0 <= y < self.bottle_size[1]:
+            raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
         colornum:int = self.bottle[y][x]
         if colornum==1:
             return "red"
@@ -194,7 +206,8 @@ class DrMario(tkinter.Canvas):
         self.after_cancel(self.now_process)
         self.now_process = self.after(0, self.game_loop)
         logging.debug("start!!")                                                 #  こっから game start
-        self.put_block(6,9,self.RED)  #試験的なput
+        self.put_block(6,9,self.RED)        #試験的なput
+        logging.debug(self.get_block(6, 9))  # 試験的なget
     def game_over(self):
         """
         ゲームオーバー時の画面遷移
