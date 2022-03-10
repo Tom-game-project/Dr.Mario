@@ -6,7 +6,7 @@ mail  : tom.ipynb@gmail.com
 
 Copyright © 2021 tom0427. All rights reserved.
 """
-from email.mime import image
+
 import tkinter
 from tkinter import ttk
 import os
@@ -134,7 +134,10 @@ class DrMario(tkinter.Canvas):
         cho:list = [self.RED, self.GREEN, self.BLUE]
         medi: tuple = (random.choice(cho), random.choice(cho))
         return medi
-    def color_compile(self,color:int)->"image":
+    def color_compile(self,color:int):
+        """
+        color number からcolor objectを返します
+        """
         if color==1:
             return self.red_block
         elif color==2:
@@ -150,14 +153,14 @@ class DrMario(tkinter.Canvas):
         """
         self.next_medicine:tuple[int,int]=self.create_medicine()                                               #工事中 image のtag付け
         self.create_image(
-            self.bottle_position[0]+self.bottle_size[0]/2-self.block_image_size/2,
-            self.bottle_position[1]+self.bottle_size[1]/2,
-            image=self.color_compile(self.next_medicine[0])
+            self.next_medicine_position[0]+(self.next_medicine_size[0]/2)-(self.block_image_size/2),
+            self.next_medicine_position[1]+(self.next_medicine_size[1]/2),
+            image=self.color_compile(self.next_medicine[0]),
             )
         self.create_image(
-            self.bottle_position[0]+self.bottle_size[0]/2+self.block_image_size/2,
-            self.bottle_position[1]+self.bottle_size[1]/2,
-            image=self.color_compile(self.next_medicine[1])
+            self.next_medicine_position[0]+(self.next_medicine_size[0]/2)+(self.block_image_size/2),
+            self.next_medicine_position[1]+(self.next_medicine_size[1]/2),
+            image=self.color_compile(self.next_medicine[1]),
             )
     def drop_start(self):
         """
@@ -264,6 +267,7 @@ class DrMario(tkinter.Canvas):
         self.after_cancel(self.now_process)
         self.now_process = self.after(0, self.game_loop)
         logging.debug("start!!")                                                 #  こっから game start
+        self.set_next_medicine()
         self.put_block(6,9,self.RED)        #試験的なput
         logging.debug(self.get_block(6, 9))  # 試験的なget
     def game_over(self):
