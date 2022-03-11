@@ -7,6 +7,8 @@ mail  : tom.ipynb@gmail.com
 Copyright © 2021 tom0427. All rights reserved.
 """
 
+#だいぶ汚れてるので一通り書き終えたら整える
+
 import tkinter
 from tkinter import ttk
 import os
@@ -15,6 +17,7 @@ import datetime
 import random
 
 from enum import Enum
+from urllib.parse import ParseResultBytes
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -80,18 +83,25 @@ class DrMario(tkinter.Canvas):
         self.level:int = 0
         #block image size
         self.block_image_size:int = 50 # 画像は正方形であること
+        #block angle
+        self.angle:int = 0
+        #一応宣言だけ
+        self.block_x:int
+        self.block_y:int
         #定数の設定
         #bottle position
         self.bottle_position:tuple[int,int]=(200,50)
         #bottle size
         self.bottle_size:tuple[int,int] = (7,10)
         #bottle の設計
-        self.bottle:list[list[int]] = [[0 for j in range(self.bottle_size[0])] for i in range(self.bottle_size[1])]
+        self.bottle:list[list[int]] = [[(0,0) for j in range(self.bottle_size[0])] for i in range(self.bottle_size[1])]
         #next medicine display
         self.next_medicine_position:tuple[int,int]=(20,50) #next medicineの表示位置
         self.next_medicine_size:tuple[int,int]=(150,100)     #next medicine のsize
-        #max block tag
-        self.block_max_tag:int = 0
+        #drop speed の設定
+        self.drop_speed:int = 5
+        #落ち始めたところからのピクセル単位の距離
+        self.drop_position:int = 0
     #start画面インターフェイス
     def start_button_event_push(self,e):
         """
@@ -134,7 +144,7 @@ class DrMario(tkinter.Canvas):
         cho:list = [self.RED, self.GREEN, self.BLUE]
         medi: tuple = (random.choice(cho), random.choice(cho))
         return medi
-    def color_compile(self,color:int):
+    def num_to_color_obj(self,color:int):
         """
         color number からcolor objectを返します
         """
@@ -146,7 +156,19 @@ class DrMario(tkinter.Canvas):
             return self.blue_block
         else:
             raise DrMarioError(DrMarioError.COLOR)
-    def set_next_medicine(self)->None:
+    def num_to_color(self, color: int) -> int:
+        """
+        color number からcolorを返す
+        """
+        if color == 1:
+            return "red"
+        elif color==2:
+            return "green"
+        elif color==3:
+            return "blue"
+        else:
+            raise DrMarioError(DrMarioError.COLOR)
+    def set_next_medicine(self,block_max_tag:int)->None:
         """
         次の薬を設定する
         
@@ -155,71 +177,97 @@ class DrMario(tkinter.Canvas):
         self.create_image(
             self.next_medicine_position[0]+(self.next_medicine_size[0]/2)-(self.block_image_size/2),
             self.next_medicine_position[1]+(self.next_medicine_size[1]/2),
-            image=self.color_compile(self.next_medicine[0]),
-            )
+            image=self.num_to_color_obj(self.next_medicine[0]),
+            tags=f"block:{block_max_tag+1}"
+        )
         self.create_image(
             self.next_medicine_position[0]+(self.next_medicine_size[0]/2)+(self.block_image_size/2),
             self.next_medicine_position[1]+(self.next_medicine_size[1]/2),
-            image=self.color_compile(self.next_medicine[1]),
-            )
+            image=self.num_to_color_obj(self.next_medicine[1]),
+            tags=f"block:{block_max_tag+2}"
+        )
     def drop_start(self):
         """
         薬の落下を開始する
+        待機スペースから薬を移動させてくる
         """
-        pass                                              #工事中
-    def drop_medicine(self):
+        self.angle:int = 2
+        self.block_x:int = int(self.bottle_size[0]/2)
+        self.block_y:int = 0
+        self.drop_position: int = 0
+        self.put_block(self.block_max_tag-1,int(self.bottle_size[0]/2)-1,0,self.next_medicine[0])
+        self.put_block(self.block_max_tag,int(self.bottle_size[0]/2),0,self.next_medicine[1])
+    def drop_medicine(self)->None:
         """
         薬を落とすアニメーション
         """
-        pass                                               #工事中
+        if self.key_right:
+            logging.debug("right")
+        if self.key_left:
+            logging.debug("left")
+        if self.key_down:
+            self.move(f"block:{self.block_max_tag-1}",0,self.drop_speed)
+            self.move(f"block:{self.block_max_tag}",0,self.drop_speed)#基準
+        if self.key_up:
+            self.angle = (self.angle+1)%4
+    def change_angle(self,angle)->None:
+        if angle==0:
+            next_position=(self.block_x+1,self.block_y) 
+        elif angle==1:
+            next_position=(self.block_x,self.block_y-1)
+        elif angle==2:
+            next_position=(self.block_x-1,self.block_y)
+        elif angle==3:
+            next_position=(self.block_x,self.block_y+1)
+        else:
+            pass
+        status=self.get_block(*next_position)
+        if status is not False and status==0:
+            self.put_block(f"block:{self.block_max_tag-1}",*next_position,)     # これだと挙動変になるはず
+        else:
+            pass
+    def landing(self):
+        """
+        tagのマックスサイズの引き上げ
+        """
+        self.block_max_tag+=2
     def next_stage(self):
         """
         今のgameをコンプリートした際に次のステージに進む
         """
         pass                                               #工事中
     #medicine処理
-    def put_block(self,x,y,color)->None:
+    def put_block(self,tag_num:int,x:int,y:int,color:int)->None:
         """
-        指定されたbottle上の座標にブロックを置く
-        ```python
-        self.put_block(5,5,self.RED)
-        ```
+        指定された座標上にblockを移動させる
         """
-        if color==1:   # red
-            image = self.red_block
-        elif color==2: # green
-            image = self.green_block
-        elif color==3: # blue
-            image = self.blue_block
-        else:
-            raise DrMarioError(DrMarioError.COLOR)
         if not 0<= x <self.bottle_size[0]:
             raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
         if not 0<= y <self.bottle_size[1]:
             raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
-        self.bottle[y][x]= color
-        self.create_image(self.bottle_position[0]+self.block_image_size/2+self.block_image_size*x,      #x
-                        self.bottle_position[1]+self.block_image_size/2+self.block_image_size*y,        #y
-                        image=image,                                                                    #image
-                        tags=f"block"                                                                   #tag
+        self.bottle[y][x]= (color,tag_num)
+        self.moveto(
+            f"block:{tag_num}", 
+            self.bottle_position[0]+self.block_image_size*x,
+            self.bottle_position[1]+self.block_image_size*y
+            )
+        """
+        self.create_image(self.bottle_position[0]+self.block_image_size/2+self.block_image_size*x,    
+                        self.bottle_position[1]+self.block_image_size/2+self.block_image_size*y,      
+                        image=image,                                                                  
+                        tags=f"block:{tag_num}"                                                       
                         )
+        """
     def get_block(self,x,y)->str:
         """
         指定されたbottle上の座標のブロックを返す
         """
         if not 0 <= x < self.bottle_size[0]:
-            raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
+            return False
         if not 0 <= y < self.bottle_size[1]:
-            raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
-        colornum:int = self.bottle[y][x]
-        if colornum==1:
-            return "red"
-        elif colornum==2:
-            return "green"
-        elif colornum==3:
-            return "blue"
-        else:
-            return "NONE"
+            return False
+        colornum:int = self.bottle[y][x][0]
+        return self.num_to_color(colornum)
     #keybboard
     #keyをFalseにset
     def set_keys_False(self):
@@ -236,16 +284,14 @@ class DrMario(tkinter.Canvas):
         """
         if e.keysym == "Right":
             self.key_right: bool = True
-            logging.debug("Right")
         if e.keysym == "Left":
             self.key_left: bool = True
-            logging.debug("Left")
         if e.keysym == "Up":
             self.key_up: bool = True
-            logging.debug("Up")
         if e.keysym == "Down":
             self.key_down: bool = True
-            logging.debug("Down")
+        if e.keysym == "space":
+            logging.debug(self.block_max_tag)
     #カウントダウンアニメーションからの脱出
     def exit_count(self):
         """
@@ -259,17 +305,26 @@ class DrMario(tkinter.Canvas):
             self.bottle_size[1]*self.block_image_size, 10
         )
         self.bottle_frame(
-            self.next_medicine_position[0], self.next_medicine_position[1],
+            self.next_medicine_position[0],self.next_medicine_position[1],
             self.next_medicine_position[0]+self.next_medicine_size[0],
             self.next_medicine_position[1]+self.next_medicine_size[1],
             10
         )
         self.after_cancel(self.now_process)
-        self.now_process = self.after(0, self.game_loop)
-        logging.debug("start!!")                                                 #  こっから game start
-        self.set_next_medicine()
-        self.put_block(6,9,self.RED)        #試験的なput
-        logging.debug(self.get_block(6, 9))  # 試験的なget
+        #max block tag
+        self.block_max_tag:int = 0
+        self.now_process = self.after(0, self.game_loop)# こっから game start
+        #block init
+        self.set_next_medicine(self.block_max_tag)
+        self.block_max_tag += 2
+        self.drop_start()
+        self.set_next_medicine(self.block_max_tag)
+        self.__block()
+
+    def __block(self):
+        for i in self.bottle:
+            print(i)
+
     def game_over(self):
         """
         ゲームオーバー時の画面遷移
@@ -304,18 +359,8 @@ class DrMario(tkinter.Canvas):
         ## ゲームloop
         """
         self.delete("clock")
+        self.drop_medicine()
         self.set_keys_False() #keyをset
-        """
-        if self.key_right:
-            logging.debug("right")
-        if self.key_left:
-            logging.debug("left")
-        if self.key_down:
-            logging.debug("down")
-        if self.key_up:
-            logging.debug("up")
-        """
-        
         self.now_process = self.after(10, self.game_loop)
     def result_loop(self):
         """
@@ -330,10 +375,11 @@ if __name__=="__main__":
     frame = ttk.Frame(root)
     frame.pack()
     
+
+    #DrMario
     canvas = DrMario(frame,width=600,height=600,bg="black")
-    canvas.pack()
     root.bind("<Key>",canvas.key_events)
-    
+    canvas.pack()
     canvas.after(0,canvas.start_loop)
     
     root.mainloop()
