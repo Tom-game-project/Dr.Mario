@@ -17,6 +17,7 @@ import datetime
 import random
 
 from enum import Enum
+from turtle import color
 from urllib.parse import ParseResultBytes
 
 logging.basicConfig(
@@ -35,6 +36,7 @@ class DrMarioError(BaseException,Enum):
     #Error level
     COLOR:int=0
     OUT_OF_BOTTLE_RANGE:int=1
+    OUT_OF_DIRECTION_RANGE:int=2
 
     #初期化
     def __init__(self,level:int):
@@ -44,6 +46,8 @@ class DrMarioError(BaseException,Enum):
             return "指定されたcolorは見つかりませんでした"
         elif self.level == 1:  # OUT_OF_BOTTLE_RANGE
             return "指定された座標がbottle範囲外です"
+        elif self.level == 2:  # OUT_OF_DIRECTION_RANGE
+            return "指定されたangleが範囲外です"
         else:
             return "なんかわからんけどerror"
 
@@ -102,6 +106,8 @@ class DrMario(tkinter.Canvas):
         self.drop_speed:int = 5
         #落ち始めたところからのピクセル単位の距離
         self.drop_position:int = 0
+        self.odd_block_color:int
+        self.even_block_color:int
     #start画面インターフェイス
     def start_button_event_push(self,e):
         """
@@ -198,15 +204,71 @@ class DrMario(tkinter.Canvas):
         self.block_x:int = int(self.bottle_size[0]/2)
         self.block_y:int = 0
         self.drop_position: int = 0
-        self.put_block(self.block_max_tag-1,int(self.bottle_size[0]/2)-1,0,self.next_medicine[0])
-        self.put_block(self.block_max_tag,int(self.bottle_size[0]/2),0,self.next_medicine[1])
+        self.odd_block_color:int = self.next_medicine[0]
+        self.even_block_color:int= self.next_medicine[1]
+        self.put_block(self.block_max_tag-1,int(self.bottle_size[0]/2)-1,0)
+        self.put_block(self.block_max_tag,int(self.bottle_size[0]/2),0)
     def drop_medicine(self)->None:
         """
         薬を落とすアニメーション
         """
         if self.key_right:
+            #angleが0,2の時右側のblockが地面（ボトル壁面）または他のblockにぶつかったら戻す
+            sx:int = 1
+            if self.angle==0:
+                kind_of_block = self.get_block(self.block_x+2, self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx:int=0
+            if self.angle==2:
+                kind_of_block = self.get_block(self.block_x+1, self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx:int=0
+            if self.angle==1:
+                kind_of_block = self.get_block(self.block_x+1,self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx:int=0
+                kind_of_block = self.get_block(self.block_x+1,self.block_y-1)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx:int=0
+            if self.angle==3:
+                kind_of_block = self.get_block(self.block_x+1,self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx:int=0
+                kind_of_block = self.get_block(self.block_x+1,self.block_y+1)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx:int=0
+            self.block_x+=sx
+            self.move(f"block:{self.block_max_tag-1}",sx*self.block_image_size,0)
+            self.move(f"block:{self.block_max_tag}",sx*self.block_image_size,0)
             logging.debug("right")
         if self.key_left:
+            #angleが1,3の時右側のblockが地面（ボトル壁面）または他のblockにぶつかったら戻す
+            sx: int = -1
+            if self.angle==0:
+                kind_of_block = self.get_block(self.block_x-1, self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx:int=0
+            if self.angle==2:
+                kind_of_block = self.get_block(self.block_x-2, self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx:int=0
+            if self.angle == 1:
+                kind_of_block = self.get_block(self.block_x-1, self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx: int = 0
+                kind_of_block = self.get_block(self.block_x-1, self.block_y-1)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx: int = 0
+            if self.angle == 3:
+                kind_of_block = self.get_block(self.block_x-1, self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx: int = 0
+                kind_of_block = self.get_block(self.block_x-1, self.block_y+1)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    sx:int = 0
+            self.block_x+=sx
+            self.move(f"block:{self.block_max_tag-1}",sx*self.block_image_size,0)
+            self.move(f"block:{self.block_max_tag}",sx*self.block_image_size,0)
             logging.debug("left")
         if self.key_down:
             self.drop_position+=self.drop_speed
@@ -252,17 +314,19 @@ class DrMario(tkinter.Canvas):
                 pass
             else:
                 self.angle = (self.angle-1) % 4
-    def change_angle(self,angle)->bool:
-        if angle==0:
-            next_position:tuple=(1,0) 
+    def compass(self,angle:int)->tuple:
+        if angle == 0:
+            return (1,0) 
         elif angle==1:
-            next_position:tuple=(0,-1)
+            return (0,-1)
         elif angle==2:
-            next_position:tuple=(-1,0)
+            return (-1,0)
         elif angle==3:
-            next_position:tuple=(0,1)
+            return (0,1)
         else:
-            pass
+            raise DrMarioError(DrMarioError.OUT_OF_DIRECTION_RANGE)#error送出
+    def change_angle(self,angle)->bool:
+        next_position:tuple=self.compass(angle)
         status=self.get_block(self.block_x+next_position[0],self.block_y+next_position[1])
         logging.debug(status)
         if status is not False and status=="NONE":
@@ -279,7 +343,9 @@ class DrMario(tkinter.Canvas):
         """
         tagのmaxtagの引き上げ
         """
-
+        self.bottle[self.block_y][self.block_x]=self.even_block_color,self.block_max_tag
+        angle_tuple:tuple=self.compass(self.angle)
+        self.bottle[self.block_y+angle_tuple[1]][self.block_x+angle_tuple[0]]=self.odd_block_color,self.block_max_tag-1
         self.block_max_tag += 2
         self.drop_start()
         self.set_next_medicine(self.block_max_tag)
@@ -291,7 +357,7 @@ class DrMario(tkinter.Canvas):
     #medicine処理
     def put_block_data(self,tag_num:int,x:int,y:int,color:int):
         self.bottle[y][x] = (color,tag_num)
-    def put_block(self,tag_num:int,x:int,y:int,color:int)->None:
+    def put_block(self,tag_num:int,x:int,y:int)->None:
         """
         指定された座標上にblockを移動させる
         """
@@ -300,6 +366,7 @@ class DrMario(tkinter.Canvas):
         if not 0<= y <self.bottle_size[1]:
             raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
         #なくてもいい
+        #もし復活させるならcolorを引数に増やしてね！
         #self.bottle[y][x]= (color,tag_num)
         self.moveto(
             f"block:{tag_num}", 
@@ -349,8 +416,7 @@ class DrMario(tkinter.Canvas):
         if e.keysym == "Down":
             self.key_down: bool = True
         if e.keysym == "space":
-            logging.debug(self.block_x)
-            logging.debug(self.block_y)
+            self.__block()
     #カウントダウンアニメーションからの脱出
     def exit_count(self):
         """
