@@ -166,7 +166,10 @@ class DrMario(tkinter.Canvas):
             return "green"
         elif color==3:
             return "blue"
+        elif color==0:
+            return "NONE"
         else:
+            logging.debug(color)
             raise DrMarioError(DrMarioError.COLOR)
     def set_next_medicine(self,block_max_tag:int)->None:
         """
@@ -206,37 +209,88 @@ class DrMario(tkinter.Canvas):
         if self.key_left:
             logging.debug("left")
         if self.key_down:
-            self.move(f"block:{self.block_max_tag-1}",0,self.drop_speed)
-            self.move(f"block:{self.block_max_tag}",0,self.drop_speed)#基準
+            self.drop_position+=self.drop_speed
+            self.block_y = int(self.drop_position/self.block_image_size)
+            # angleが 1,3 の時
+            # 一番下あるblockが地面又は他のblockにぶつかったら戻す
+            if self.angle==1:
+                kind_of_block=self.get_block(self.block_x,self.block_y+1)
+                if kind_of_block is False or not(kind_of_block=="NONE"):
+                    self.landing()
+                    return True
+            if self.angle==3:
+                kind_of_block = self.get_block(self.block_x, self.block_y+2)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    self.landing()
+                    return True
+            # angleが 0,2 の時
+            # 二つのblockのどちらかが地面又は他のblockにぶつかったら戻す
+            if self.angle==0:
+                kind_of_block = self.get_block(self.block_x, self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    self.landing()
+                    return True
+                kind_of_block = self.get_block(self.block_x+1, self.block_y)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    self.landing()
+                    return True
+            if self.angle==2:
+                kind_of_block = self.get_block(self.block_x, self.block_y+1)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    self.landing()
+                    return True
+                kind_of_block = self.get_block(self.block_x-1, self.block_y+1)
+                if kind_of_block is False or not(kind_of_block == "NONE"):
+                    self.landing()
+                    return True
+            self.move(f"block:{self.block_max_tag-1}", 0, self.drop_speed)
+            self.move(f"block:{self.block_max_tag}", 0, self.drop_speed)  # 基準
         if self.key_up:
             self.angle = (self.angle+1)%4
-    def change_angle(self,angle)->None:
+            logging.debug(self.block_y)
+            if self.change_angle(self.angle):
+                pass
+            else:
+                self.angle = (self.angle-1) % 4
+    def change_angle(self,angle)->bool:
         if angle==0:
-            next_position=(self.block_x+1,self.block_y) 
+            next_position:tuple=(1,0) 
         elif angle==1:
-            next_position=(self.block_x,self.block_y-1)
+            next_position:tuple=(0,-1)
         elif angle==2:
-            next_position=(self.block_x-1,self.block_y)
+            next_position:tuple=(-1,0)
         elif angle==3:
-            next_position=(self.block_x,self.block_y+1)
+            next_position:tuple=(0,1)
         else:
             pass
-        status=self.get_block(*next_position)
-        if status is not False and status==0:
-            self.put_block(f"block:{self.block_max_tag-1}",*next_position,)     # これだと挙動変になるはず
+        status=self.get_block(self.block_x+next_position[0],self.block_y+next_position[1])
+        logging.debug(status)
+        if status is not False and status=="NONE":
+            self.moveto(
+                f"block:{self.block_max_tag-1}",
+                (self.bottle_position[0]+self.block_image_size*self.block_x) +
+                (next_position[0]*self.block_image_size),
+                self.drop_position+self.block_image_size+(next_position[1]*self.block_image_size),
+            )
+            return True
         else:
-            pass
+            return False
     def landing(self):
         """
-        tagのマックスサイズの引き上げ
+        tagのmaxtagの引き上げ
         """
-        self.block_max_tag+=2
+
+        self.block_max_tag += 2
+        self.drop_start()
+        self.set_next_medicine(self.block_max_tag)
     def next_stage(self):
         """
         今のgameをコンプリートした際に次のステージに進む
         """
         pass                                               #工事中
     #medicine処理
+    def put_block_data(self,tag_num:int,x:int,y:int,color:int):
+        self.bottle[y][x] = (color,tag_num)
     def put_block(self,tag_num:int,x:int,y:int,color:int)->None:
         """
         指定された座標上にblockを移動させる
@@ -245,7 +299,8 @@ class DrMario(tkinter.Canvas):
             raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
         if not 0<= y <self.bottle_size[1]:
             raise DrMarioError(DrMarioError.OUT_OF_BOTTLE_RANGE)
-        self.bottle[y][x]= (color,tag_num)
+        #なくてもいい
+        #self.bottle[y][x]= (color,tag_num)
         self.moveto(
             f"block:{tag_num}", 
             self.bottle_position[0]+self.block_image_size*x,
@@ -261,6 +316,9 @@ class DrMario(tkinter.Canvas):
     def get_block(self,x,y)->str:
         """
         指定されたbottle上の座標のブロックを返す
+        範囲外の時     -> False
+        何もないとき   -> "NONE"
+        なんか会った時 -> それぞれの色の名前
         """
         if not 0 <= x < self.bottle_size[0]:
             return False
@@ -291,7 +349,8 @@ class DrMario(tkinter.Canvas):
         if e.keysym == "Down":
             self.key_down: bool = True
         if e.keysym == "space":
-            logging.debug(self.block_max_tag)
+            logging.debug(self.block_x)
+            logging.debug(self.block_y)
     #カウントダウンアニメーションからの脱出
     def exit_count(self):
         """
