@@ -4,26 +4,24 @@
 mouse wheel 動作
 """
 import tkinter
-import platform
+
 
 root = tkinter.Tk()
 
-
-current_os = platform.system()
-
-
-def mousewheelevent(e) -> None:
-    if current_os == "Windows":
-        #一ステップがosによって違う
-        print(e.delta/120)
-    else:
-        print(e.delta)
+root.title("moveTo")
+frame = tkinter.Frame(root,background="black")
+frame.pack(expand=True,fill=tkinter.BOTH)
 
 
-canvas = tkinter.Canvas()
+canvas = tkinter.Canvas(frame)
 canvas.pack()
 
-root.bind("<MouseWheel>", mousewheelevent)
+image = tkinter.PhotoImage(file="image\game\_blue.png")
+
+
+canvas.create_image(10,10,image=image,tags="image")
+canvas.moveto("image",0 ,0)
+
 
 
 root.mainloop()
